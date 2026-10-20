@@ -1,0 +1,103 @@
+name: Release
+
+# A push to main whose pom version has no release yet publishes one: the jar and sources to GitHub
+# Packages, then tag vX.Y.Z and a release with the commits since the previous tag and both jars
+# attached. Every version keeps its own release. Versions are bumped by hand.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Two runs racing would both try to publish the same version.
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    # Only this repository publishes, not forks.
+    if: github.repository == 'NullByte3/nativa'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Check out source and release tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Set up Java 25 and the registry credentials
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+
+      - name: Check whether this version is released
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(./mvnw --batch-mode --quiet help:evaluate -Dexpression=project.version -DforceStdout)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "pom.xml carries an unsupported version: '$version'" >&2
+            exit 1
+          fi
+          skip=false
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            skip=true
+            echo "v$version is already released; bump the version in pom.xml to publish a new one."
+          fi
+          {
+            echo "version=$version"
+            echo "tag=v$version"
+            echo "skip=$skip"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to GitHub Packages
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./mvnw --batch-mode --no-transfer-progress deploy
+
+      - name: Publish the release
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          commit="$(git rev-parse HEAD)"
+
+          # Notes: the commits since the newest earlier version tag.
+          previous="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --merged "$commit" --sort=-v:refname \
+            | grep -vx "$TAG" | head -n 1 || true)"
+          range="$commit"
+          if [[ -n "$previous" ]]; then
+            range="$previous..$commit"
+          fi
+          notes="$(git log --no-merges --max-count=200 --pretty='- %s (%h)' "$range")"
+
+          # Attached as well: GitHub Packages wants a token even to read, a release asset does not.
+          jar="target/nativa-$VERSION.jar"
+          sources="target/nativa-$VERSION-sources.jar"
+          sha256sum "$jar" "$sources" > "target/nativa-$VERSION.sha256"
+
+          # GitHub creates the tag at --target when it does not exist yet.
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$commit" --title "$TAG" \
+            --notes "$notes" "$jar" "$sources" "target/nativa-$VERSION.sha256"
+          echo "Published $TAG at $commit"
