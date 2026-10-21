@@ -4,5 +4,6 @@
 module club.nullbyte3.nativa {
   exports club.nullbyte3.nativa;
   exports club.nullbyte3.nativa.array;
+  exports club.nullbyte3.nativa.map;
   exports club.nullbyte3.nativa.struct;
 }
