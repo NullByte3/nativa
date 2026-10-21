@@ -86,6 +86,11 @@ public final class LongArray extends Memory {
     return (long) ATOMIC.getAndAdd(segment, offset(index), delta);
   }
 
+  /** Atomically set the element and return what it held before. */
+  public long getAndSet(long index, long value) {
+    return (long) ATOMIC.getAndSet(segment, offset(index), value);
+  }
+
   // Checked before multiplying, so a huge index cannot wrap around into range.
   private long offset(long index) {
     return Objects.checkIndex(index, length) * Long.BYTES;

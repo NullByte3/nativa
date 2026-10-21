@@ -70,6 +70,11 @@ public final class StructRing extends StructMemory {
   }
 
   @Override
+  long count() {
+    return size;
+  }
+
+  @Override
   long slot(long back) {
     long slot = head - Objects.checkIndex(back, size);
     return slot < 0 ? slot + capacity : slot;

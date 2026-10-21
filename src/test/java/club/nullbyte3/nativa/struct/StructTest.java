@@ -1,6 +1,7 @@
 package club.nullbyte3.nativa.struct;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -80,5 +81,58 @@ class StructTest {
       assertThrows(IndexOutOfBoundsException.class, () -> ring.getInt(0, TICKS));
     }
     assertThrows(IllegalArgumentException.class, () -> MOVE.ring(0));
+  }
+
+  @Test
+  void fillSetsTheFieldOfEveryElement() {
+    try (StructArray moves = MOVE.array(5);
+        StructRing ring = MOVE.ring(4)) {
+      moves.fillInt(TICKS, 7);
+      moves.fillBoolean(GROUND, true);
+      for (int i = 0; i < 5; i++) {
+        assertEquals(7, moves.getInt(i, TICKS));
+        assertTrue(moves.getBoolean(i, GROUND));
+        assertEquals(0, moves.getDouble(i, X));
+      }
+      ring.fillDouble(X, 1); // empty ring: nothing to fill
+      ring.push();
+      ring.push();
+      ring.fillDouble(X, 2.5);
+      assertEquals(2.5, ring.getDouble(1, X));
+      assertThrows(IllegalArgumentException.class, () -> moves.fillDouble(TICKS, 1));
+      assertThrows(IllegalArgumentException.class, () -> ring.fillFloat(TICKS, 1f));
+    }
+  }
+
+  @Test
+  void fieldAtomics() throws InterruptedException {
+    try (StructArray moves = MOVE.array(2)) {
+      Thread[] threads = new Thread[4];
+      for (int t = 0; t < threads.length; t++) {
+        threads[t] =
+            Thread.ofPlatform()
+                .start(
+                    () -> {
+                      for (int i = 0; i < 25_000; i++) {
+                        moves.getAndAddInt(1, TICKS, 1);
+                        moves.getAndAddByte(1, FLAGS, (byte) 1);
+                        moves.getAndAddFloat(1, YAW, 1f);
+                      }
+                    });
+      }
+      for (Thread thread : threads) thread.join();
+      assertEquals(100_000, moves.getIntVolatile(1, TICKS));
+      assertEquals((byte) 100_000, moves.getByteVolatile(1, FLAGS));
+      assertEquals(100_000f, moves.getFloatVolatile(1, YAW));
+      assertEquals(0, moves.getInt(0, TICKS));
+
+      assertFalse(moves.getAndSetBoolean(0, GROUND, true));
+      assertTrue(moves.compareAndSetBoolean(0, GROUND, true, false));
+      assertTrue(moves.compareAndSetDouble(0, X, 0, 4.5));
+      assertEquals(4.5, moves.getAndAddDouble(0, X, 1));
+      assertEquals(5.5, moves.getDoubleVolatile(0, X));
+      assertThrows(IllegalArgumentException.class, () -> moves.getAndAddLong(0, TICKS, 1));
+      assertThrows(IndexOutOfBoundsException.class, () -> moves.getAndAddInt(2, TICKS, 1));
+    }
   }
 }

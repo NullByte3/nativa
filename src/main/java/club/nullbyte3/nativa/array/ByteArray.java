@@ -3,11 +3,14 @@ package club.nullbyte3.nativa.array;
 import club.nullbyte3.nativa.Memory;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.lang.invoke.VarHandle;
+import java.util.Objects;
 
 /** A fixed-length {@code byte} array, zeroed when allocated. */
 public final class ByteArray extends Memory {
 
   private static final ValueLayout.OfByte LAYOUT = ValueLayout.JAVA_BYTE;
+  private static final VarHandle ATOMIC = LAYOUT.varHandle();
   private final long length;
 
   private ByteArray(long length) {
@@ -56,5 +59,32 @@ public final class ByteArray extends Memory {
 
   public byte[] toArray() {
     return segment.toArray(LAYOUT);
+  }
+
+  /** The latest write to this element from any thread. */
+  public byte getVolatile(long index) {
+    return (byte) ATOMIC.getVolatile(segment, Objects.checkIndex(index, length));
+  }
+
+  /** Write an element every thread sees at once. */
+  public void setVolatile(long index, byte value) {
+    ATOMIC.setVolatile(segment, Objects.checkIndex(index, length), value);
+  }
+
+  /**
+   * Atomically set the element to {@code update} if it holds {@code expected}; false if it did not.
+   */
+  public boolean compareAndSet(long index, byte expected, byte update) {
+    return compareAndSetSmall(Objects.checkIndex(index, length), Byte.BYTES, expected, update);
+  }
+
+  /** Atomically set the element and return what it held before. */
+  public byte getAndSet(long index, byte value) {
+    return (byte) getAndSetSmall(Objects.checkIndex(index, length), Byte.BYTES, value);
+  }
+
+  /** Atomically add {@code delta} and return what the element held before. Wraps on overflow. */
+  public byte getAndAdd(long index, byte delta) {
+    return (byte) getAndAddSmall(Objects.checkIndex(index, length), Byte.BYTES, delta);
   }
 }

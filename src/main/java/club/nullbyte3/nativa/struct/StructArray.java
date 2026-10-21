@@ -28,6 +28,11 @@ public final class StructArray extends StructMemory {
   }
 
   @Override
+  long count() {
+    return length;
+  }
+
+  @Override
   long slot(long index) {
     return Objects.checkIndex(index, length);
   }

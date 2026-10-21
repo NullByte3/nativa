@@ -79,6 +79,19 @@ public final class FloatArray extends Memory {
     return ATOMIC.compareAndSet(segment, offset(index), expected, update);
   }
 
+  /** Atomically set the element and return what it held before. */
+  public float getAndSet(long index, float value) {
+    return (float) ATOMIC.getAndSet(segment, offset(index), value);
+  }
+
+  /** Atomically add {@code delta} and return what the element held before. */
+  public float getAndAdd(long index, float delta) {
+    while (true) {
+      float before = getVolatile(index);
+      if (compareAndSet(index, before, before + delta)) return before;
+    }
+  }
+
   // Checked before multiplying, so a huge index cannot wrap around into range.
   private long offset(long index) {
     return Objects.checkIndex(index, length) * Float.BYTES;
