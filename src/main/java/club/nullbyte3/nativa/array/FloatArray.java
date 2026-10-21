@@ -1,6 +1,7 @@
 package club.nullbyte3.nativa.array;
 
 import club.nullbyte3.nativa.Memory;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.VarHandle;
@@ -13,18 +14,23 @@ public final class FloatArray extends Memory {
   private static final VarHandle ATOMIC = LAYOUT.varHandle();
   private final long length;
 
-  private FloatArray(long length) {
-    super(Math.multiplyExact(length, Float.BYTES), Float.BYTES);
+  private FloatArray(Arena arena, long length) {
+    super(arena, Math.multiplyExact(length, Float.BYTES), Float.BYTES);
     this.length = length;
   }
 
   public static FloatArray allocate(long length) {
-    return new FloatArray(length);
+    return new FloatArray(null, length);
+  }
+
+  /** Allocate in {@code arena}, which frees it when it closes; see {@link Memory#close()}. */
+  public static FloatArray allocate(Arena arena, long length) {
+    return new FloatArray(Objects.requireNonNull(arena), length);
   }
 
   /** A copy of {@code values}. */
   public static FloatArray of(float... values) {
-    FloatArray array = new FloatArray(values.length);
+    FloatArray array = new FloatArray(null, values.length);
     array.copyFrom(values);
     return array;
   }
@@ -77,6 +83,57 @@ public final class FloatArray extends Memory {
    */
   public boolean compareAndSet(long index, float expected, float update) {
     return ATOMIC.compareAndSet(segment, offset(index), expected, update);
+  }
+
+  /** Atomically set the element and return what it held before. */
+  public float getAndSet(long index, float value) {
+    return (float) ATOMIC.getAndSet(segment, offset(index), value);
+  }
+
+  /** Atomically add {@code delta} and return what the element held before. */
+  public float getAndAdd(long index, float delta) {
+    while (true) {
+      float before = getVolatile(index);
+      if (compareAndSet(index, before, before + delta)) return before;
+    }
+  }
+
+  /** Set the elements from {@code from} up to, not including, {@code to}. */
+  public void fill(long from, long to, float value) {
+    Objects.checkFromToIndex(from, to, length);
+    for (long i = from; i < to; i++) segment.setAtIndex(LAYOUT, i, value);
+  }
+
+  /** Copy {@code length} elements of {@code src}, from {@code srcPos}, to {@code index}. */
+  public void copyFrom(float[] src, int srcPos, long index, int length) {
+    Objects.checkFromIndexSize(srcPos, length, src.length);
+    Objects.checkFromIndexSize(index, length, this.length);
+    MemorySegment.copy(src, srcPos, segment, LAYOUT, index * Float.BYTES, length);
+  }
+
+  /** Copy {@code length} elements from {@code index} to {@code dst}, from {@code dstPos}. */
+  public void copyTo(long index, float[] dst, int dstPos, int length) {
+    Objects.checkFromIndexSize(index, length, this.length);
+    Objects.checkFromIndexSize(dstPos, length, dst.length);
+    MemorySegment.copy(segment, LAYOUT, index * Float.BYTES, dst, dstPos, length);
+  }
+
+  /**
+   * Copy {@code length} elements from {@code index} to {@code dstIndex} in {@code dst}, which may
+   * be this array; the ranges may overlap.
+   */
+  public void copyTo(long index, FloatArray dst, long dstIndex, long length) {
+    Objects.checkFromIndexSize(index, length, this.length);
+    Objects.checkFromIndexSize(dstIndex, length, dst.length);
+    MemorySegment.copy(
+        segment, index * Float.BYTES, dst.segment, dstIndex * Float.BYTES, length * Float.BYTES);
+  }
+
+  /** A copy of {@code length} elements from {@code from}. */
+  public float[] toArray(long from, int length) {
+    float[] out = new float[length];
+    copyTo(from, out, 0, length);
+    return out;
   }
 
   // Checked before multiplying, so a huge index cannot wrap around into range.

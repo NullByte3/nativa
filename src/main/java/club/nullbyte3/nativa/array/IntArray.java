@@ -1,6 +1,7 @@
 package club.nullbyte3.nativa.array;
 
 import club.nullbyte3.nativa.Memory;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.VarHandle;
@@ -13,18 +14,23 @@ public final class IntArray extends Memory {
   private static final VarHandle ATOMIC = LAYOUT.varHandle();
   private final long length;
 
-  private IntArray(long length) {
-    super(Math.multiplyExact(length, Integer.BYTES), Integer.BYTES);
+  private IntArray(Arena arena, long length) {
+    super(arena, Math.multiplyExact(length, Integer.BYTES), Integer.BYTES);
     this.length = length;
   }
 
   public static IntArray allocate(long length) {
-    return new IntArray(length);
+    return new IntArray(null, length);
+  }
+
+  /** Allocate in {@code arena}, which frees it when it closes; see {@link Memory#close()}. */
+  public static IntArray allocate(Arena arena, long length) {
+    return new IntArray(Objects.requireNonNull(arena), length);
   }
 
   /** A copy of {@code values}. */
   public static IntArray of(int... values) {
-    IntArray array = new IntArray(values.length);
+    IntArray array = new IntArray(null, values.length);
     array.copyFrom(values);
     return array;
   }
@@ -84,6 +90,53 @@ public final class IntArray extends Memory {
   /** Atomically add {@code delta} and return what the element held before. */
   public int getAndAdd(long index, int delta) {
     return (int) ATOMIC.getAndAdd(segment, offset(index), delta);
+  }
+
+  /** Atomically set the element and return what it held before. */
+  public int getAndSet(long index, int value) {
+    return (int) ATOMIC.getAndSet(segment, offset(index), value);
+  }
+
+  /** Set the elements from {@code from} up to, not including, {@code to}. */
+  public void fill(long from, long to, int value) {
+    Objects.checkFromToIndex(from, to, length);
+    for (long i = from; i < to; i++) segment.setAtIndex(LAYOUT, i, value);
+  }
+
+  /** Copy {@code length} elements of {@code src}, from {@code srcPos}, to {@code index}. */
+  public void copyFrom(int[] src, int srcPos, long index, int length) {
+    Objects.checkFromIndexSize(srcPos, length, src.length);
+    Objects.checkFromIndexSize(index, length, this.length);
+    MemorySegment.copy(src, srcPos, segment, LAYOUT, index * Integer.BYTES, length);
+  }
+
+  /** Copy {@code length} elements from {@code index} to {@code dst}, from {@code dstPos}. */
+  public void copyTo(long index, int[] dst, int dstPos, int length) {
+    Objects.checkFromIndexSize(index, length, this.length);
+    Objects.checkFromIndexSize(dstPos, length, dst.length);
+    MemorySegment.copy(segment, LAYOUT, index * Integer.BYTES, dst, dstPos, length);
+  }
+
+  /**
+   * Copy {@code length} elements from {@code index} to {@code dstIndex} in {@code dst}, which may
+   * be this array; the ranges may overlap.
+   */
+  public void copyTo(long index, IntArray dst, long dstIndex, long length) {
+    Objects.checkFromIndexSize(index, length, this.length);
+    Objects.checkFromIndexSize(dstIndex, length, dst.length);
+    MemorySegment.copy(
+        segment,
+        index * Integer.BYTES,
+        dst.segment,
+        dstIndex * Integer.BYTES,
+        length * Integer.BYTES);
+  }
+
+  /** A copy of {@code length} elements from {@code from}. */
+  public int[] toArray(long from, int length) {
+    int[] out = new int[length];
+    copyTo(from, out, 0, length);
+    return out;
   }
 
   // Checked before multiplying, so a huge index cannot wrap around into range.

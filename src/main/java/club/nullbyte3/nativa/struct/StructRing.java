@@ -1,5 +1,6 @@
 package club.nullbyte3.nativa.struct;
 
+import java.lang.foreign.Arena;
 import java.util.Objects;
 
 /**
@@ -23,8 +24,8 @@ public final class StructRing extends StructMemory {
 
   private long size;
 
-  StructRing(Struct struct, long capacity) {
-    super(struct, positive(capacity));
+  StructRing(Arena arena, Struct struct, long capacity) {
+    super(arena, struct, positive(capacity));
     this.capacity = capacity;
     this.stride = struct.byteSize();
     this.head = capacity - 1;
@@ -67,6 +68,11 @@ public final class StructRing extends StructMemory {
   private static long positive(long capacity) {
     if (capacity <= 0) throw new IllegalArgumentException("capacity must be positive: " + capacity);
     return capacity;
+  }
+
+  @Override
+  long count() {
+    return size;
   }
 
   @Override
