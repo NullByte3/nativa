@@ -24,7 +24,7 @@ in `~/.m2/settings.xml` as server `github`.
 <dependency>
     <groupId>club.nullbyte3</groupId>
     <artifactId>nativa</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
 </dependency>
 ```
 
