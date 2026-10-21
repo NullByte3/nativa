@@ -1,6 +1,7 @@
 package club.nullbyte3.nativa.array;
 
 import club.nullbyte3.nativa.Memory;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.VarHandle;
@@ -13,18 +14,23 @@ public final class CharArray extends Memory {
   private static final VarHandle ATOMIC = LAYOUT.varHandle();
   private final long length;
 
-  private CharArray(long length) {
-    super(Math.multiplyExact(length, Character.BYTES), Character.BYTES);
+  private CharArray(Arena arena, long length) {
+    super(arena, Math.multiplyExact(length, Character.BYTES), Character.BYTES);
     this.length = length;
   }
 
   public static CharArray allocate(long length) {
-    return new CharArray(length);
+    return new CharArray(null, length);
+  }
+
+  /** Allocate in {@code arena}, which frees it when it closes; see {@link Memory#close()}. */
+  public static CharArray allocate(Arena arena, long length) {
+    return new CharArray(Objects.requireNonNull(arena), length);
   }
 
   /** A copy of {@code values}. */
   public static CharArray of(char... values) {
-    CharArray array = new CharArray(values.length);
+    CharArray array = new CharArray(null, values.length);
     array.copyFrom(values);
     return array;
   }

@@ -16,6 +16,7 @@ public abstract class Memory implements AutoCloseable {
 
   // A shared arena per block: any thread can access it, and closing it waits out in-flight reads.
   private final Arena arena;
+  private final boolean owner;
   private final AtomicBoolean closing = new AtomicBoolean();
   protected final MemorySegment segment;
 
@@ -26,9 +27,20 @@ public abstract class Memory implements AutoCloseable {
   private static final boolean BIG_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;
 
   protected Memory(long bytes, long alignment) {
+    this(null, bytes, alignment);
+  }
+
+  /** Allocate in {@code shared}, or in an arena of its own when that is null. */
+  protected Memory(Arena shared, long bytes, long alignment) {
     if (bytes < 0) throw new IllegalArgumentException("negative size: " + bytes);
-    this.arena = Arena.ofShared();
-    this.backing = arena.allocate(Math.addExact(bytes, 3) & ~3L, Math.max(alignment, Long.BYTES));
+    this.owner = shared == null;
+    this.arena = owner ? Arena.ofShared() : shared;
+    try {
+      this.backing = arena.allocate(Math.addExact(bytes, 3) & ~3L, Math.max(alignment, Long.BYTES));
+    } catch (Throwable t) {
+      if (owner) arena.close(); // nothing else holds it, so do not leak it
+      throw t;
+    }
     this.segment = backing.asSlice(0, bytes);
   }
 
@@ -51,18 +63,19 @@ public abstract class Memory implements AutoCloseable {
     segment.fill((byte) 0);
   }
 
-  /** Whether {@link #close()} has run. Every access after that throws. */
+  /** Whether the memory is freed: {@link #close()} ran, or the arena it lives in was closed. */
   public final boolean isClosed() {
     return !arena.scope().isAlive();
   }
 
   /**
    * Free the memory. Closing again does nothing, from any thread; the first close waits for reads
-   * and writes in flight.
+   * and writes in flight. Memory allocated in an arena you passed in is not freed here but when
+   * that arena closes, so for it this does nothing.
    */
   @Override
   public final void close() {
-    if (closing.compareAndSet(false, true)) arena.close();
+    if (owner && closing.compareAndSet(false, true)) arena.close();
   }
 
   /**

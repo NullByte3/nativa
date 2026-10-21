@@ -1,8 +1,10 @@
 package club.nullbyte3.nativa;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.VarHandle;
+import java.util.Objects;
 
 /**
  * Raw bytes addressed by offset, for packing mixed fields by hand. Native byte order, any
@@ -27,12 +29,17 @@ public final class RawMemory extends Memory {
   private static final VarHandle ATOMIC_FLOAT = ValueLayout.JAVA_FLOAT.varHandle();
   private static final VarHandle ATOMIC_DOUBLE = ValueLayout.JAVA_DOUBLE.varHandle();
 
-  private RawMemory(long bytes) {
-    super(bytes, Long.BYTES);
+  private RawMemory(Arena arena, long bytes) {
+    super(arena, bytes, Long.BYTES);
   }
 
   public static RawMemory allocate(long bytes) {
-    return new RawMemory(bytes);
+    return new RawMemory(null, bytes);
+  }
+
+  /** Allocate in {@code arena}, which frees it when it closes; see {@link Memory#close()}. */
+  public static RawMemory allocate(Arena arena, long bytes) {
+    return new RawMemory(Objects.requireNonNull(arena), bytes);
   }
 
   public byte getByte(long offset) {

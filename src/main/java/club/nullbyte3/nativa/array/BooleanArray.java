@@ -1,6 +1,7 @@
 package club.nullbyte3.nativa.array;
 
 import club.nullbyte3.nativa.Memory;
+import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.VarHandle;
 import java.util.Objects;
@@ -17,18 +18,23 @@ public final class BooleanArray extends Memory {
   private static final VarHandle ATOMIC = LAYOUT.varHandle();
   private final long length;
 
-  private BooleanArray(long length) {
-    super(Math.multiplyExact(words(length), Long.BYTES), Long.BYTES);
+  private BooleanArray(Arena arena, long length) {
+    super(arena, Math.multiplyExact(words(length), Long.BYTES), Long.BYTES);
     this.length = length;
   }
 
   public static BooleanArray allocate(long length) {
-    return new BooleanArray(length);
+    return new BooleanArray(null, length);
+  }
+
+  /** Allocate in {@code arena}, which frees it when it closes; see {@link Memory#close()}. */
+  public static BooleanArray allocate(Arena arena, long length) {
+    return new BooleanArray(Objects.requireNonNull(arena), length);
   }
 
   /** A copy of {@code values}. */
   public static BooleanArray of(boolean... values) {
-    BooleanArray array = new BooleanArray(values.length);
+    BooleanArray array = new BooleanArray(null, values.length);
     array.copyFrom(values);
     return array;
   }

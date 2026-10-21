@@ -1,6 +1,7 @@
 package club.nullbyte3.nativa.struct;
 
 import club.nullbyte3.nativa.Memory;
+import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.VarHandle;
 
@@ -22,8 +23,8 @@ public abstract sealed class StructMemory extends Memory permits StructArray, St
 
   private final Struct struct;
 
-  StructMemory(Struct struct, long elements) {
-    super(Math.multiplyExact(elements, struct.byteSize()), struct.alignment());
+  StructMemory(Arena arena, Struct struct, long elements) {
+    super(arena, Math.multiplyExact(elements, struct.byteSize()), struct.alignment());
     this.struct = struct;
   }
 

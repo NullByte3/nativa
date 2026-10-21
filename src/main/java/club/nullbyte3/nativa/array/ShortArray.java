@@ -1,6 +1,7 @@
 package club.nullbyte3.nativa.array;
 
 import club.nullbyte3.nativa.Memory;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.VarHandle;
@@ -13,18 +14,23 @@ public final class ShortArray extends Memory {
   private static final VarHandle ATOMIC = LAYOUT.varHandle();
   private final long length;
 
-  private ShortArray(long length) {
-    super(Math.multiplyExact(length, Short.BYTES), Short.BYTES);
+  private ShortArray(Arena arena, long length) {
+    super(arena, Math.multiplyExact(length, Short.BYTES), Short.BYTES);
     this.length = length;
   }
 
   public static ShortArray allocate(long length) {
-    return new ShortArray(length);
+    return new ShortArray(null, length);
+  }
+
+  /** Allocate in {@code arena}, which frees it when it closes; see {@link Memory#close()}. */
+  public static ShortArray allocate(Arena arena, long length) {
+    return new ShortArray(Objects.requireNonNull(arena), length);
   }
 
   /** A copy of {@code values}. */
   public static ShortArray of(short... values) {
-    ShortArray array = new ShortArray(values.length);
+    ShortArray array = new ShortArray(null, values.length);
     array.copyFrom(values);
     return array;
   }

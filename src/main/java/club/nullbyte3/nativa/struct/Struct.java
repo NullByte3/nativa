@@ -1,8 +1,10 @@
 package club.nullbyte3.nativa.struct;
 
+import java.lang.foreign.Arena;
 import java.lang.reflect.RecordComponent;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * The C layout of a record of primitives: fields in declaration order, each aligned to its size,
@@ -56,12 +58,22 @@ public final class Struct {
 
   /** A fixed array of {@code length} zeroed elements. */
   public StructArray array(long length) {
-    return new StructArray(this, length);
+    return new StructArray(null, this, length);
+  }
+
+  /** A fixed array of {@code length} zeroed elements in {@code arena}, which frees it. */
+  public StructArray array(Arena arena, long length) {
+    return new StructArray(Objects.requireNonNull(arena), this, length);
   }
 
   /** A ring keeping the last {@code capacity} elements pushed. */
   public StructRing ring(long capacity) {
-    return new StructRing(this, capacity);
+    return new StructRing(null, this, capacity);
+  }
+
+  /** A ring keeping the last {@code capacity} elements, in {@code arena}, which frees it. */
+  public StructRing ring(Arena arena, long capacity) {
+    return new StructRing(Objects.requireNonNull(arena), this, capacity);
   }
 
   /** Bytes per element, padding included. */
