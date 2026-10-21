@@ -87,4 +87,42 @@ public final class ByteArray extends Memory {
   public byte getAndAdd(long index, byte delta) {
     return (byte) getAndAddSmall(Objects.checkIndex(index, length), Byte.BYTES, delta);
   }
+
+  /** Set the elements from {@code from} up to, not including, {@code to}. */
+  public void fill(long from, long to, byte value) {
+    Objects.checkFromToIndex(from, to, length);
+    segment.asSlice(from, to - from).fill(value);
+  }
+
+  /** Copy {@code length} elements of {@code src}, from {@code srcPos}, to {@code index}. */
+  public void copyFrom(byte[] src, int srcPos, long index, int length) {
+    Objects.checkFromIndexSize(srcPos, length, src.length);
+    Objects.checkFromIndexSize(index, length, this.length);
+    MemorySegment.copy(src, srcPos, segment, LAYOUT, index * Byte.BYTES, length);
+  }
+
+  /** Copy {@code length} elements from {@code index} to {@code dst}, from {@code dstPos}. */
+  public void copyTo(long index, byte[] dst, int dstPos, int length) {
+    Objects.checkFromIndexSize(index, length, this.length);
+    Objects.checkFromIndexSize(dstPos, length, dst.length);
+    MemorySegment.copy(segment, LAYOUT, index * Byte.BYTES, dst, dstPos, length);
+  }
+
+  /**
+   * Copy {@code length} elements from {@code index} to {@code dstIndex} in {@code dst}, which may
+   * be this array; the ranges may overlap.
+   */
+  public void copyTo(long index, ByteArray dst, long dstIndex, long length) {
+    Objects.checkFromIndexSize(index, length, this.length);
+    Objects.checkFromIndexSize(dstIndex, length, dst.length);
+    MemorySegment.copy(
+        segment, index * Byte.BYTES, dst.segment, dstIndex * Byte.BYTES, length * Byte.BYTES);
+  }
+
+  /** A copy of {@code length} elements from {@code from}. */
+  public byte[] toArray(long from, int length) {
+    byte[] out = new byte[length];
+    copyTo(from, out, 0, length);
+    return out;
+  }
 }

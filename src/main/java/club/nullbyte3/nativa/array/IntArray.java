@@ -91,6 +91,48 @@ public final class IntArray extends Memory {
     return (int) ATOMIC.getAndSet(segment, offset(index), value);
   }
 
+  /** Set the elements from {@code from} up to, not including, {@code to}. */
+  public void fill(long from, long to, int value) {
+    Objects.checkFromToIndex(from, to, length);
+    for (long i = from; i < to; i++) segment.setAtIndex(LAYOUT, i, value);
+  }
+
+  /** Copy {@code length} elements of {@code src}, from {@code srcPos}, to {@code index}. */
+  public void copyFrom(int[] src, int srcPos, long index, int length) {
+    Objects.checkFromIndexSize(srcPos, length, src.length);
+    Objects.checkFromIndexSize(index, length, this.length);
+    MemorySegment.copy(src, srcPos, segment, LAYOUT, index * Integer.BYTES, length);
+  }
+
+  /** Copy {@code length} elements from {@code index} to {@code dst}, from {@code dstPos}. */
+  public void copyTo(long index, int[] dst, int dstPos, int length) {
+    Objects.checkFromIndexSize(index, length, this.length);
+    Objects.checkFromIndexSize(dstPos, length, dst.length);
+    MemorySegment.copy(segment, LAYOUT, index * Integer.BYTES, dst, dstPos, length);
+  }
+
+  /**
+   * Copy {@code length} elements from {@code index} to {@code dstIndex} in {@code dst}, which may
+   * be this array; the ranges may overlap.
+   */
+  public void copyTo(long index, IntArray dst, long dstIndex, long length) {
+    Objects.checkFromIndexSize(index, length, this.length);
+    Objects.checkFromIndexSize(dstIndex, length, dst.length);
+    MemorySegment.copy(
+        segment,
+        index * Integer.BYTES,
+        dst.segment,
+        dstIndex * Integer.BYTES,
+        length * Integer.BYTES);
+  }
+
+  /** A copy of {@code length} elements from {@code from}. */
+  public int[] toArray(long from, int length) {
+    int[] out = new int[length];
+    copyTo(from, out, 0, length);
+    return out;
+  }
+
   // Checked before multiplying, so a huge index cannot wrap around into range.
   private long offset(long index) {
     return Objects.checkIndex(index, length) * Integer.BYTES;
