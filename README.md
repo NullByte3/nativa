@@ -1,10 +1,13 @@
 # nativa
 
 Store data outside the Java heap. Use primitive arrays, raw bytes, and structs. No boxing, no
-dependencies. Needs Java 22 or later.
+dependencies. Needs Java 25 or later.
 
 It uses the Foreign Function & Memory API (`java.lang.foreign`), not `Unsafe`. You free memory
 yourself with `close()`. The GC never touches it.
+
+This is just a wrapper around MemorySegment, and you should probably not use it. I would use something like [Agrona](https://github.com/aeron-io/agrona/tree/master) or [Netty](https://github.com/netty/netty) for networking.
+I made this to improve a few addons aka "Plugins" in Minecraft for my own sake.
 
 ## Install
 
