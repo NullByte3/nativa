@@ -2,9 +2,11 @@ package club.nullbyte3.nativa;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import club.nullbyte3.nativa.array.BooleanArray;
 import club.nullbyte3.nativa.array.ByteArray;
 import club.nullbyte3.nativa.array.DoubleArray;
 import club.nullbyte3.nativa.array.FloatArray;
@@ -78,5 +80,54 @@ class NativaTest {
     array.close();
     assertThrows(IllegalStateException.class, () -> array.get(0));
     assertThrows(IllegalArgumentException.class, () -> RawMemory.allocate(-1));
+  }
+
+  @Test
+  void booleanArrayPacksOneBitPerEntry() {
+    try (BooleanArray bits = BooleanArray.allocate(70)) {
+      assertEquals(16, bits.byteSize());
+      bits.set(0, true);
+      bits.set(63, true);
+      bits.set(64, true);
+      bits.set(69, true);
+      assertTrue(bits.get(63));
+      assertFalse(bits.get(62));
+      assertEquals(4, bits.cardinality());
+      bits.set(63, false);
+      assertTrue(bits.flip(1));
+      assertEquals(4, bits.cardinality());
+      bits.fill(true);
+      assertEquals(70, bits.cardinality());
+      bits.fill(false);
+      assertEquals(0, bits.cardinality());
+      assertThrows(IndexOutOfBoundsException.class, () -> bits.get(70));
+      assertThrows(IndexOutOfBoundsException.class, () -> bits.set(-1, true));
+    }
+  }
+
+  @Test
+  void booleanArrayAtomicsKeepNeighbours() throws InterruptedException {
+    try (BooleanArray bits = BooleanArray.allocate(64)) {
+      assertFalse(bits.getAndSet(5, true));
+      assertTrue(bits.getAndSet(5, true));
+      assertTrue(bits.compareAndSet(5, true, false));
+      assertFalse(bits.compareAndSet(5, true, false));
+      Thread[] threads = new Thread[8];
+      for (int t = 0; t < threads.length; t++) {
+        int bit = t;
+        threads[t] =
+            Thread.ofPlatform()
+                .start(
+                    () -> {
+                      for (int i = 0; i < 50_000; i++) {
+                        bits.setVolatile(bit, true);
+                        bits.setVolatile(bit, false);
+                      }
+                      bits.setVolatile(bit, true);
+                    });
+      }
+      for (Thread thread : threads) thread.join();
+      assertEquals(8, bits.cardinality());
+    }
   }
 }
