@@ -2,15 +2,17 @@ package club.nullbyte3.nativa;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A block of off-heap memory, zeroed when allocated and freed by {@link #close()}. Any thread may
- * use it; an access after the close throws instead of reading freed memory.
+ * use it; an access after the close throws instead of reading freed memory. Closing twice is fine.
  */
 public abstract class Memory implements AutoCloseable {
 
   // A shared arena per block: any thread can access it, and closing it waits out in-flight reads.
   private final Arena arena;
+  private final AtomicBoolean closing = new AtomicBoolean();
   protected final MemorySegment segment;
 
   protected Memory(long bytes, long alignment) {
@@ -38,9 +40,17 @@ public abstract class Memory implements AutoCloseable {
     segment.fill((byte) 0);
   }
 
-  /** Free the memory. A second close throws. */
+  /** Whether {@link #close()} has run. Every access after that throws. */
+  public final boolean isClosed() {
+    return !arena.scope().isAlive();
+  }
+
+  /**
+   * Free the memory. Closing again does nothing, from any thread; the first close waits for reads
+   * and writes in flight.
+   */
   @Override
   public final void close() {
-    arena.close();
+    if (closing.compareAndSet(false, true)) arena.close();
   }
 }
